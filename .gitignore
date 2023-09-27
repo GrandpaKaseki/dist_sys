@@ -1,3 +1,5 @@
 venv
 .idea
 text.py
+id_rsa.pub
+id_rsa
