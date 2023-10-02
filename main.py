@@ -14,6 +14,9 @@ class USDTrAcKeR:
         return requests.get('https://www.cbr-xml-daily.ru/daily_json.js').json()
 
     def __init__(self) -> None:
+        # this parameter needs to create column with this name in csv file.
+        self.column_name = 'usd, rub'
+
         self.curr_usd = self.__get_usd_price()['Valute']['USD']['Value']
         # needs to stop collecting.
         self.collect = True
@@ -51,6 +54,9 @@ class CPUTrAcKeR:
     """This class collect info about cpu percentage course with psutil framework."""
 
     def __init__(self) -> None:
+        # this parameter needs to create column with this name in csv file.
+        self.column_name = 'cpu, %'
+
         self.curr_percent = psutil.cpu_percent(interval=None, percpu=False)
         # needs to stop collecting.
         self.collect = True
@@ -90,6 +96,9 @@ class BiTcOiNTrAcKeR:
         return float(response["USD"]["last"])
 
     def __init__(self) -> None:
+        # this parameter needs to create column with this name in csv file.
+        self.column_name = 'bitcoin, usd'
+
         self.curr_price = self.__get_bit_price()
         # needs to stop collecting.
         self.collect = True
@@ -119,50 +128,49 @@ class BiTcOiNTrAcKeR:
         table[column_name] = self.data_list
 
 
+def start_or_join_thread(start: bool, thread_arr: list):
+    if start:
+        for thread in thread_arr:
+            thread.start()
+    else:
+        for thread in thread_arr:
+            thread.join()
+
+
 def main() -> None:
     data_table = pd.DataFrame()
     usd = USDTrAcKeR()
     cpu = CPUTrAcKeR()
     bit = BiTcOiNTrAcKeR()
+    class_arr = [usd, cpu, bit]
+    thread_start = []
+    thread_stop = []
 
-    # create collecting cycle threads.
-    thread_usd = Thread(target=usd.start_collect, args=(), daemon=True)
-    thread_cpu = Thread(target=cpu.start_collect, args=(), daemon=True)
-    thread_bit = Thread(target=bit.start_collect, args=(), daemon=True)
-
-    # create stop collecting threads.
-    thread_stop_usd = Thread(target=usd.stop_collect, args=(data_table, 'usd, rub'), daemon=True)
-    thread_stop_cpu = Thread(target=cpu.stop_collect, args=(data_table, 'cpu, %'), daemon=True)
-    thread_stop_bit = Thread(target=bit.stop_collect, args=(data_table, 'bitcoin, usd'), daemon=True)
+    for class_ in class_arr:
+        thread_start.append(Thread(target=class_.start_collect, args=(), daemon=True))
+        thread_stop.append(Thread(target=class_.stop_collect, args=(data_table, class_.column_name), daemon=True))
 
     # start collecting.
     print("start collecting")
-    thread_usd.start()
-    thread_cpu.start()
-    thread_bit.start()
+    start_or_join_thread(start=True, thread_arr=thread_start)
 
     work_time_sec = 20 * 60  # how long will we collect (in seconds).
     time_count = time.time()  # timer.
     while True:
         # checking if every thread is alive.
-        if not (thread_bit.is_alive() and thread_cpu.is_alive() and thread_usd.is_alive()):
-            print("Error: one of the thread died")
-            break
+        for collect_thread in thread_start:
+            if not collect_thread.is_alive():
+                print("Error: one of the thread died")
+                break
         # check time to stop.
         if time.time() - time_count > work_time_sec:
             break
     # stopping our collecting cycles and saving result.
-    thread_stop_usd.start()
-    thread_stop_cpu.start()
-    thread_stop_bit.start()
+    start_or_join_thread(start=True, thread_arr=thread_stop)
 
-    thread_stop_usd.join()
-    thread_stop_cpu.join()
-    thread_stop_bit.join()
+    start_or_join_thread(start=False, thread_arr=thread_stop)
 
-    thread_usd.join()
-    thread_cpu.join()
-    thread_bit.join()
+    start_or_join_thread(start=False, thread_arr=thread_start)
 
     print("stop collecting")
     # print(data_table)
