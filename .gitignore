@@ -1,5 +1,7 @@
 venv
 .idea
 text.py
-id_rsa
 id_rsa.pub
+id_rsa
+anime.py
+
